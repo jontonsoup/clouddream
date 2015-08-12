@@ -6,7 +6,7 @@ import PIL.Image
 import json
 from IPython.display import clear_output, Image, display
 from google.protobuf import text_format
-
+import shutil
 import caffe
 
 def showarray(a, fmt='jpeg'):
@@ -17,15 +17,14 @@ def showarray(a, fmt='jpeg'):
 
 with open("settings.json") as json_file:
     json_data = json.load(json_file)
-    #print()
 
+img = PIL.Image.open('inputs/input.jpg')
+if (img == None):
+    quit()
 
 model_path = '../caffe/models/bvlc_googlenet/' # substitute your path here
 net_fn   = model_path + 'deploy.prototxt'
 param_fn = model_path + 'bvlc_googlenet.caffemodel'
-
-# Patching model to be able to compute gradients.
-# Note that you can also manually add "force_backward: true" line to "deploy.prototxt".
 model = caffe.io.caffe_pb2.NetParameter()
 text_format.Merge(open(net_fn).read(), model)
 model.force_backward = True
@@ -49,7 +48,7 @@ def make_step(net, step_size=1.5, end='inception_4c/output', jitter=32, clip=Tru
 
     ox, oy = np.random.randint(-jitter, jitter+1, 2)
     src.data[0] = np.roll(np.roll(src.data[0], ox, -1), oy, -2) # apply jitter shift
-            
+
     net.forward(end=end)
     dst.diff[:] = dst.data  # specify the optimiation objective
     net.backward(start=end)
@@ -58,17 +57,17 @@ def make_step(net, step_size=1.5, end='inception_4c/output', jitter=32, clip=Tru
     src.data[:] += step_size/np.abs(g).mean() * g
 
     src.data[0] = np.roll(np.roll(src.data[0], -ox, -1), -oy, -2) # unshift image
-            
+
     if clip:
         bias = net.transformer.mean['data']
-        src.data[:] = np.clip(src.data, -bias, 255-bias)    
+        src.data[:] = np.clip(src.data, -bias, 255-bias)
 
 def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, **step_params):
     # prepare base images for all octaves
     octaves = [preprocess(net, base_img)]
     for i in xrange(octave_n-1):
         octaves.append(nd.zoom(octaves[-1], (1, 1.0/octave_scale,1.0/octave_scale), order=1))
-    
+
     src = net.blobs['data']
     detail = np.zeros_like(octaves[-1]) # allocate image for network-produced details
     for octave, octave_base in enumerate(octaves[::-1]):
@@ -82,7 +81,7 @@ def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='incep
         src.data[0] = octave_base+detail
         for i in xrange(iter_n):
             make_step(net, end=end, clip=clip, **step_params)
-            
+
             # visualization
             vis = deprocess(net, src.data[0])
             if not clip: # adjust image contrast if clipping is disabled
@@ -90,7 +89,7 @@ def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='incep
             #showarray(vis)
             print octave, i, end, vis.shape
             clear_output(wait=True)
-            
+
         # extract details produced on the current octave
         detail = src.data[0]-octave_base
     # returning the resulting image
@@ -98,7 +97,6 @@ def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='incep
 
 
 maxwidth = json_data['maxwidth']
-img = PIL.Image.open('input.jpg')
 width = img.size[0]
 
 if width > maxwidth:
@@ -111,11 +109,48 @@ img = np.float32(img)
 frame = img
 #frame_i = 0
 
-frame = deepdream(net, frame, end=json_data['layer'])
-#frame = deepdream(net, img, end='inception_3b/5x5_reduce')
-#frame = deepdream(net, img, end='conv2/3x3')
+layers = [
+        "conv1/7x7_s2",
+        "pool1/3x3_s2",
+        "pool1/norm1",
+        "conv2/3x3_reduce",
+        "conv2/3x3",
+        "conv2/norm2",
+        "pool2/3x3_s2",
+        "inception_3a/1x1",
+        "inception_3a/3x3_reduce",
+        "inception_3a/3x3",
+        "inception_3a/5x5_reduce",
+        "inception_3a/5x5",
+        "inception_3a/pool",
+        "inception_3a/pool_proj",
+        "inception_3a/output",
+        "inception_3b/1x1",
+        "inception_3b/3x3_reduce",
+        "inception_3b/3x3",
+        "inception_3b/5x5_reduce",
+        "inception_3b/5x5",
+        "inception_3b/pool",
+        "inception_3b/pool_proj",
+        "inception_3b/output",
+        "pool3/3x3_s2",
+        "inception_4a/1x1",
+        "inception_4a/3x3_reduce",
+        "inception_4a/3x3",
+        "inception_4a/5x5_reduce",
+        "inception_4a/5x5",
+        "inception_4a/pool",
+        "inception_4a/pool_proj",
+        "inception_4a/output"
+        ]
 
-PIL.Image.fromarray(np.uint8(frame)).save("output.jpg")
+iterations = 10
+for layer in layers:
+    output = deepdream(net, frame, iter_n=iterations, end=layer)
+    name = layer.replace("/", "") + "_" + str(iterations) + "___"
+    PIL.Image.fromarray(np.uint8(output)).save("outputs/output"+ name + ".jpg")
+
+shutil.move("inputs/input.jpg", "done/input.jpg")
 
 #h, w = frame.shape[:2]
 #s = 0.05 # scale coefficient
