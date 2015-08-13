@@ -62,7 +62,7 @@ def make_step(net, step_size=1.5, end='inception_4c/output', jitter=32, clip=Tru
         bias = net.transformer.mean['data']
         src.data[:] = np.clip(src.data, -bias, 255-bias)
 
-def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, **step_params):
+def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, jitter=32, **step_params):
     # prepare base images for all octaves
     octaves = [preprocess(net, base_img)]
     for i in xrange(octave_n-1):
@@ -80,7 +80,7 @@ def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='incep
         src.reshape(1,3,h,w) # resize the network's input image size
         src.data[0] = octave_base+detail
         for i in xrange(iter_n):
-            make_step(net, end=end, clip=clip, **step_params)
+            make_step(net, end=end, jitter=jitter, clip=clip, **step_params)
 
             # visualization
             vis = deprocess(net, src.data[0])
@@ -115,14 +115,20 @@ def process(net, frame):
 
     iterations = 50
     octave_n = 2
-    octave_scale = 1
+    octave_scale = 1.2
+    jitter = 100
 
-    for layer in layers:
-        output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
-        name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
-        name2 = name + str(octave_n) + "_scl_" + str(octave_scale)
+    for jitter in xrange(0,100,5):
+        for octave_n in xrange(0,10,1):
+            for octave_scale in xrange(0,3,1):
+                for iterations in xrange(0,100,10):
+                    for layer in layers:
+                        output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, jitter=jitter)
+                        name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
+                        name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
+                        name3 = name2 + str(jitter)
 
-        PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name2 + ".jpg")
+                        PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3 + ".jpg")
 
     shutil.move("inputs/input.jpg", "done/input.jpg")
 
