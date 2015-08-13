@@ -107,55 +107,23 @@ if width > maxwidth:
 img = np.float32(img)
 
 frame = img
-#frame_i = 0
 
-layers = [
-        "conv1/7x7_s2",
-        "pool1/3x3_s2",
-        "pool1/norm1",
-        "conv2/3x3_reduce",
-        "conv2/3x3",
-        "conv2/norm2",
-        "pool2/3x3_s2",
-        "inception_3a/1x1",
-        "inception_3a/3x3_reduce",
-        "inception_3a/3x3",
-        "inception_3a/5x5_reduce",
-        "inception_3a/5x5",
-        "inception_3a/pool",
-        "inception_3a/pool_proj",
-        "inception_3a/output",
-        "inception_3b/1x1",
-        "inception_3b/3x3_reduce",
-        "inception_3b/3x3",
-        "inception_3b/5x5_reduce",
-        "inception_3b/5x5",
-        "inception_3b/pool",
-        "inception_3b/pool_proj",
-        "inception_3b/output",
-        "pool3/3x3_s2",
-        "inception_4a/1x1",
-        "inception_4a/3x3_reduce",
-        "inception_4a/3x3",
-        "inception_4a/5x5_reduce",
-        "inception_4a/5x5",
-        "inception_4a/pool",
-        "inception_4a/pool_proj",
-        "inception_4a/output"
-        ]
+def process(net, frame):
+    layers = [
+            "inception_3b/5x5_reduce",
+            ]
 
-iterations = 10
-for layer in layers:
-    output = deepdream(net, frame, iter_n=iterations, end=layer)
-    name = layer.replace("/", "") + "_" + str(iterations) + "___"
-    PIL.Image.fromarray(np.uint8(output)).save("outputs/output"+ name + ".jpg")
+    iterations = 50
+    octave_n = 2
+    octave_scale = 1
 
-shutil.move("inputs/input.jpg", "done/input.jpg")
+    for layer in layers:
+        output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
+        name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
+        name2 = name + str(octave_n) + "_scl_" + str(octave_scale)
 
-#h, w = frame.shape[:2]
-#s = 0.05 # scale coefficient
-#for i in xrange(100):
-#    frame = deepdream(net, frame)
-#    PIL.Image.fromarray(np.uint8(frame)).save("output/%04d.jpg"%frame_i)
-#    frame = nd.affine_transform(frame, [1-s,1-s,1], [h*s/2,w*s/2,0], order=1)
-#    frame_i += 1
+        PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name2 + ".jpg")
+
+    shutil.move("inputs/input.jpg", "done/input.jpg")
+
+process(net, frame)
