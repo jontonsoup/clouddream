@@ -96,6 +96,44 @@ def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='incep
     return deprocess(net, src.data[0])
 
 
+def deepdream2(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, **step_params):
+    # prepare base images for all octaves
+    octaves = [preprocess(net, base_img)]
+    phi = (1+5 ** 0.5)/2
+    pfactor = iter_n/(phi ** (octave_n - 1))
+
+    for i in xrange(octave_n-1):
+        octaves.append(nd.zoom(octaves[-1], (1, 1.0/octave_scale,1.0/octave_scale), order=1))
+
+    src = net.blobs['data']
+    detail = np.zeros_like(octaves[-1]) # allocate image for network-produced details
+    for octave, octave_base in enumerate(octaves[::-1]):
+        h, w = octave_base.shape[-2:]
+        if octave > 0:
+            # upscale details from the previous octave
+            h1, w1 = detail.shape[-2:]
+            detail = nd.zoom(detail, (1, 1.0*h/h1,1.0*w/w1), order=1)
+
+        src.reshape(1,3,h,w) # resize the network's input image size
+        src.data[0] = octave_base+detail
+        # adjust for octave. less iterations at rough scales
+        # 100% = octave_n, 1 = octave 0
+        # (((iter_n +1)/octave_n) * octave) + 1
+        # orig: for i in xrange(iter_n):
+        for i in xrange(np.fix((phi ** octave) * pfactor)):
+            make_step(net, end=end, clip=clip, **step_params)
+
+            # visualization
+            vis = deprocess(net, src.data[0])
+            if not clip: # adjust image contrast if clipping is disabled
+                vis = vis*(255.0/np.percentile(vis, 99.98))
+            print octave, i, end, vis.shape
+
+        # extract details produced on the current octave
+        detail = src.data[0]-octave_base
+    # returning the resulting image
+    return deprocess(net, src.data[0])
+
 maxwidth = json_data['maxwidth']
 width = img.size[0]
 
@@ -126,4 +164,25 @@ def process(net, frame):
 
     shutil.move("inputs/input.jpg", "done/input.jpg")
 
-process(net, frame)
+def process2(net, frame):
+    layers = [
+            "inception_3b/5x5_reduce",
+            ]
+
+    for octave_n in xrange(1,10,1):
+        for octave_scale in [0.5,1.5,2,2.2]:
+            for iterations in xrange(75,100,10):
+                for layer in layers:
+                    output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
+                    name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
+                    name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
+                    name3 = name2 + "32__nonlin"
+
+                    PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3 + ".jpg", dpi=(600,600))
+
+import os
+child_pid = os.fork()
+if child_pid == 0:
+    process(net, frame)
+else:
+    process2(net, frame)
