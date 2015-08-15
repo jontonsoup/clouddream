@@ -113,22 +113,16 @@ def process(net, frame):
             "inception_3b/5x5_reduce",
             ]
 
-    iterations = 50
-    octave_n = 2
-    octave_scale = 1.2
-    jitter = 100
+    for octave_n in xrange(1,10,1):
+        for octave_scale in [0.5,1.5,2,2.2]:
+            for iterations in xrange(75,100,10):
+                for layer in layers:
+                    output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
+                    name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
+                    name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
+                    name3 = name2 + "32"
 
-    for jitter in xrange(0,100,5):
-        for octave_n in xrange(0,10,1):
-            for octave_scale in xrange(0,3,1):
-                for iterations in xrange(0,100,10):
-                    for layer in layers:
-                        output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, jitter=jitter)
-                        name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
-                        name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
-                        name3 = name2 + str(jitter)
-
-                        PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3 + ".jpg")
+                    PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3 + ".jpg", dpi=(600,600))
 
     shutil.move("inputs/input.jpg", "done/input.jpg")
 

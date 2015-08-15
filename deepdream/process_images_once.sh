@@ -3,11 +3,15 @@
 # We will be running this script inside the visionai/clouddream Docker image
 # Copyright vision.ai, 2015
 
-echo "Starting"
-cd /opt/deepdream
-chmod gou+r inputs/*
-python deepdream.py
-ERROR_CODE=$?
-echo "Error Code is" ${ERROR_CODE}
+#echo "Starting"
+#cd /opt/deepdream
+#chmod gou+r inputs/*
+while [ true ];
+do
+  python deepdream.py >> log.file 2>&1
+  sleep 1
+done
+#ERROR_CODE=$?
+#echo "Error Code is" ${ERROR_CODE}
 
 
