@@ -123,8 +123,8 @@ def process2(net, frame, filename):
             ]
 
     for octave_n in [2]:
-        for octave_scale in [2]:
-            for iterations in [80]:
+        for octave_scale in [2.5]:
+            for iterations in [100]:
                 for layer in layers:
                     output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
                     name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
