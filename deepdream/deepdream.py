@@ -8,31 +8,13 @@ from IPython.display import clear_output, Image, display
 from google.protobuf import text_format
 import shutil
 import caffe
+import os
 
 def showarray(a, fmt='jpeg'):
     a = np.uint8(np.clip(a, 0, 255))
     f = StringIO()
     PIL.Image.fromarray(a).save(f, fmt)
     display(Image(data=f.getvalue()))
-
-with open("settings.json") as json_file:
-    json_data = json.load(json_file)
-
-img = PIL.Image.open('inputs/input.jpg')
-if (img == None):
-    quit()
-
-model_path = '../caffe/models/bvlc_googlenet/' # substitute your path here
-net_fn   = model_path + 'deploy.prototxt'
-param_fn = model_path + 'bvlc_googlenet.caffemodel'
-model = caffe.io.caffe_pb2.NetParameter()
-text_format.Merge(open(net_fn).read(), model)
-model.force_backward = True
-open('tmp.prototxt', 'w').write(str(model))
-
-net = caffe.Classifier('tmp.prototxt', param_fn,
-                       mean = np.float32([104.0, 116.0, 122.0]), # ImageNet mean, training set dependent
-                       channel_swap = (2,1,0)) # the reference model has channels in BGR order instead of RGB
 
 # a couple of utility functions for converting to and from Caffe's input image layout
 def preprocess(net, img):
@@ -134,33 +116,57 @@ def deepdream2(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='ince
     # returning the resulting image
     return deprocess(net, src.data[0])
 
-maxwidth = json_data['maxwidth']
-width = img.size[0]
 
-if width > maxwidth:
-    wpercent = (maxwidth/float(img.size[0]))
-    hsize = int((float(img.size[1])*float(wpercent)))
-    img = img.resize((maxwidth,hsize), PIL.Image.ANTIALIAS)
-
-img = np.float32(img)
-
-frame = img
-
-def process2(net, frame):
+def process2(net, frame, filename):
     layers = [
             "inception_3b/5x5_reduce",
             ]
 
     for octave_n in [2]:
-        for octave_scale in [0.5]:
-            for iterations in [85]:
+        for octave_scale in [2]:
+            for iterations in [80]:
                 for layer in layers:
                     output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
                     name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
                     name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
-                    name3 = name2 + "32__nonlin"
+                    name3 = name2 + "32__nonlin" + filename
 
                     PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3 + ".jpg", dpi=(600,600))
-    shutil.move("inputs/input.jpg", "done/input.jpg")
 
-process2(net, frame)
+for filename in os.listdir(os.getcwd() + "/inputs/"):
+    print filename
+    if filename == ".DS_Store" or filename == ".gitkeep":
+        continue
+    with open("settings.json") as json_file:
+        json_data = json.load(json_file)
+
+    img = PIL.Image.open(os.getcwd() + "/inputs/" + filename)
+    if (img == None):
+        quit()
+
+    model_path = '../caffe/models/bvlc_googlenet/' # substitute your path here
+    net_fn   = model_path + 'deploy.prototxt'
+    param_fn = model_path + 'bvlc_googlenet.caffemodel'
+    model = caffe.io.caffe_pb2.NetParameter()
+    text_format.Merge(open(net_fn).read(), model)
+    model.force_backward = True
+    open('tmp.prototxt', 'w').write(str(model))
+
+    net = caffe.Classifier('tmp.prototxt', param_fn,
+                           mean = np.float32([104.0, 116.0, 122.0]), # ImageNet mean, training set dependent
+                           channel_swap = (2,1,0)) # the reference model has channels in BGR order instead of RGB
+
+    maxwidth = json_data['maxwidth']
+
+    width = img.size[0]
+
+    if width > maxwidth:
+        wpercent = (maxwidth/float(img.size[0]))
+        hsize = int((float(img.size[1])*float(wpercent)))
+        img = img.resize((maxwidth,hsize), PIL.Image.ANTIALIAS)
+
+    img = np.float32(img)
+
+    frame = img
+    process2(net, frame, filename)
+    shutil.move(os.getcwd() + "/inputs/" + filename, "done/")
