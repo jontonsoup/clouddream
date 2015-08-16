@@ -146,32 +146,14 @@ img = np.float32(img)
 
 frame = img
 
-def process(net, frame):
-    layers = [
-            "inception_3b/5x5_reduce",
-            ]
-
-    for octave_n in xrange(1,10,1):
-        for octave_scale in [0.5,1.5,2,2.2]:
-            for iterations in xrange(75,100,10):
-                for layer in layers:
-                    output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
-                    name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
-                    name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
-                    name3 = name2 + "32"
-
-                    PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3 + ".jpg", dpi=(600,600))
-
-    shutil.move("inputs/input.jpg", "done/input.jpg")
-
 def process2(net, frame):
     layers = [
             "inception_3b/5x5_reduce",
             ]
 
-    for octave_n in xrange(1,10,1):
-        for octave_scale in [0.5,1.5,2,2.2]:
-            for iterations in xrange(75,100,10):
+    for octave_n in [2]:
+        for octave_scale in [0.5]:
+            for iterations in [85]:
                 for layer in layers:
                     output = deepdream(net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
                     name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
@@ -179,10 +161,6 @@ def process2(net, frame):
                     name3 = name2 + "32__nonlin"
 
                     PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3 + ".jpg", dpi=(600,600))
+    shutil.move("inputs/input.jpg", "done/input.jpg")
 
-import os
-child_pid = os.fork()
-if child_pid == 0:
-    process(net, frame)
-else:
-    process2(net, frame)
+process2(net, frame)

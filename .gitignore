@@ -1,7 +1,7 @@
 tmp
-inputs
 outputs
 tmp.prototxt
+log.file
 log.html
 input.jpg
 output.jpg
