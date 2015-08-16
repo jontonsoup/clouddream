@@ -9,6 +9,7 @@ from google.protobuf import text_format
 import shutil
 import caffe
 import os
+from multiprocessing import Process
 
 def showarray(a, fmt='jpeg'):
     a = np.uint8(np.clip(a, 0, 255))
@@ -168,5 +169,7 @@ for filename in os.listdir(os.getcwd() + "/inputs/"):
     img = np.float32(img)
 
     frame = img
-    process2(net, frame, filename)
+    #process2(net, frame, filename) 
+    p = Process(target=process2, args=(net,frame, filename))
+    p.start()
     shutil.move(os.getcwd() + "/inputs/" + filename, "done/")
