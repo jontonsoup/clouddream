@@ -95,11 +95,7 @@ def process2(net, frame, filename):
 
                     PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3 + ".jpg", dpi=(600,600))
 
-count = 1
-for filename in os.listdir(os.getcwd() + "/inputs/"):
-    print filename
-    if filename == ".DS_Store" or filename == ".gitkeep":
-        continue
+def start(filename):
     with open("settings.json") as json_file:
         json_data = json.load(json_file)
 
@@ -131,15 +127,20 @@ for filename in os.listdir(os.getcwd() + "/inputs/"):
     img = np.float32(img)
 
     frame = img
-    #process2(net, frame, filename) 
-    p = Process(target=process2, args=(net,frame, filename))
-    p.start()
+    process2(net, frame, filename) 
+    
+    shutil.move(os.getcwd() + "/inputs/" + filename, "done/")
 
+count = 1
+for filename in os.listdir(os.getcwd() + "/inputs/"):
+    print filename
+    if filename == ".DS_Store" or filename == ".gitkeep":
+        continue
+    p = Process(target=start, args=(filename,))
+    p.start()
     if count == 3:
         print("BLOCKING.......")
         p.join()
         count = 1
     else:
         count = count + 1
-    
-    shutil.move(os.getcwd() + "/inputs/" + filename, "done/")

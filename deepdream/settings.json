@@ -1,4 +1,4 @@
 {
-    "maxwidth" : 15000,
+    "maxwidth" : 15000000,
     "layer" : "inception_4c/output"
 }
