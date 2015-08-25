@@ -70,6 +70,7 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
             if not clip: # adjust image contrast if clipping is disabled
                 vis = vis*(255.0/np.percentile(vis, 99.98))
             #showarray(vis)
+            save_file(vis, end, i, octave, octave_scale, filename)
             print filename, octave, i, end, vis.shape
             clear_output(wait=True)
 
@@ -89,11 +90,14 @@ def process2(net, frame, filename):
             for iterations in [100]:
                 for layer in layers:
                     output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
-                    name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
-                    name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
-                    name3 = name2 + "32__nonlin" + filename
+                    save_file(output, layer, iterations, octave_n, octave_scale, filename)
 
-                    PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3 + ".jpg", dpi=(600,600))
+def save_file(output, layer, iterations, octave_n, octave_scale, filename):
+    name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
+    name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
+    name3 = name2 + "32__nonlin" + filename
+    PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3, dpi=(600,600))
+
 
 def start(filename):
     with open("settings.json") as json_file:
@@ -127,8 +131,8 @@ def start(filename):
     img = np.float32(img)
 
     frame = img
-    process2(net, frame, filename) 
-    
+    process2(net, frame, filename)
+
     shutil.move(os.getcwd() + "/inputs/" + filename, "done/")
 
 count = 1
