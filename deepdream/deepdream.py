@@ -19,7 +19,8 @@ def showarray(a, fmt='jpeg'):
 
 # a couple of utility functions for converting to and from Caffe's input image layout
 def preprocess(net, img):
-    return np.float32(np.rollaxis(img, 2)[::-1]) - net.transformer.mean['data']
+    output = np.float32(np.rollaxis(img, 2)[::-1]) - net.transformer.mean['data']
+    return output
 def deprocess(net, img):
     return np.dstack((img + net.transformer.mean['data'])[::-1])
 
@@ -45,7 +46,7 @@ def make_step(net, step_size=1.5, end='inception_4c/output', jitter=32, clip=Tru
         bias = net.transformer.mean['data']
         src.data[:] = np.clip(src.data, -bias, 255-bias)
 
-def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, jitter=32, **step_params):
+def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, model="", jitter=32, **step_params):
     # prepare base images for all octaves
     octaves = [preprocess(net, base_img)]
     for i in xrange(octave_n-1):
@@ -70,7 +71,8 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
             if not clip: # adjust image contrast if clipping is disabled
                 vis = vis*(255.0/np.percentile(vis, 99.98))
             #showarray(vis)
-            save_file(vis, end, i, octave, octave_scale, filename)
+            if (i > 20):
+                save_file(vis, end, i, octave, octave_scale, filename, model)
             print filename, octave, i, end, vis.shape
             clear_output(wait=True)
 
@@ -80,20 +82,23 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
     return deprocess(net, src.data[0])
 
 
-def process2(net, frame, filename):
-    layers = [
-            "inception_3b/5x5_reduce",
-            ]
+def process2(net, frame, filename, model):
+    # layers = [
+    #         "inception_3b/5x5_reduce",
+    #         ]
+    layers = ['conv1', 'norm1', 'pool1', 'conv2', 'norm2', 'pool2', 'conv3', 'conv4', 'conv5', 'pool5', 'fc6', 'fc7', 'fc8', 'prob']
+    # layers = net.blobs.keys()
+    # print layers
 
     for octave_n in [2]:
         for octave_scale in [2.5]:
             for iterations in [100]:
                 for layer in layers:
-                    output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer)
-                    save_file(output, layer, iterations, octave_n, octave_scale, filename)
+                    output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model)
+                    save_file(output, layer, iterations, octave_n, octave_scale, filename, model)
 
-def save_file(output, layer, iterations, octave_n, octave_scale, filename):
-    name = layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
+def save_file(output, layer, iterations, octave_n, octave_scale, filename, model):
+    name = model + "_" + layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
     name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
     name3 = name2 + "32__nonlin" + filename
     PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3, dpi=(600,600))
@@ -107,9 +112,13 @@ def start(filename):
     if (img == None):
         quit()
 
-    model_path = '../caffe/models/bvlc_googlenet/' # substitute your path here
+    model_name = "alexnet"
+    model_path = '../caffe/models/bvlc_alexnet/'
+    #model_path = '../caffe/models/bvlc_googlenet/'
     net_fn   = model_path + 'deploy.prototxt'
-    param_fn = model_path + 'bvlc_googlenet.caffemodel'
+    # param_fn = model_path + 'bvlc_googlenet.caffemodel'
+    param_fn = model_path + 'bvlc_alexnet.caffemodel'
+
     model = caffe.io.caffe_pb2.NetParameter()
     text_format.Merge(open(net_fn).read(), model)
     model.force_backward = True
@@ -131,7 +140,7 @@ def start(filename):
     img = np.float32(img)
 
     frame = img
-    process2(net, frame, filename)
+    process2(net, frame, filename, model_name)
 
     shutil.move(os.getcwd() + "/inputs/" + filename, "done/")
 
