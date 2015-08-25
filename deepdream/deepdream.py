@@ -86,22 +86,22 @@ def process2(net, frame, filename, model):
     # layers = [
     #         "inception_3b/5x5_reduce",
     #         ]
-    layers = ['conv1', 'norm1', 'pool1', 'conv2', 'norm2', 'pool2', 'conv3', 'conv4', 'conv5', 'pool5', 'fc6', 'fc7', 'fc8', 'prob']
+    layers = ['conv3', 'conv4', 'conv5', 'pool5', 'conv1', 'norm1', 'pool1', 'conv2', 'norm2', 'pool2']
     # layers = net.blobs.keys()
     # print layers
 
     for octave_n in [2]:
         for octave_scale in [2.5]:
-            for iterations in [100]:
+            for iterations in [20]:
                 for layer in layers:
                     output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model)
-                    save_file(output, layer, iterations, octave_n, octave_scale, filename, model)
+                    save_file(output, layer, iterations, octave_n, octave_scale, "final_" + filename, model)
 
 def save_file(output, layer, iterations, octave_n, octave_scale, filename, model):
     name = model + "_" + layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
     name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
     name3 = name2 + "32__nonlin" + filename
-    PIL.Image.fromarray(np.uint8(output)).save("outputs/"+ name3, dpi=(600,600))
+    PIL.Image.fromarray(np.uint8(output)).save("outputs/" + name3, dpi=(600,600))
 
 
 def start(filename):
