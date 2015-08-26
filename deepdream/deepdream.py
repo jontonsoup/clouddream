@@ -71,7 +71,7 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
             if not clip: # adjust image contrast if clipping is disabled
                 vis = vis*(255.0/np.percentile(vis, 99.98))
             #showarray(vis)
-            if (i > 20):
+            if (i > 10):
                 save_file(vis, end, i, octave, octave_scale, filename, model)
             print filename, octave, i, end, vis.shape
             clear_output(wait=True)
@@ -92,7 +92,7 @@ def process2(net, frame, filename, model):
 
     for octave_n in [2]:
         for octave_scale in [2.5]:
-            for iterations in [20]:
+            for iterations in [30]:
                 for layer in layers:
                     output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model)
                     save_file(output, layer, iterations, octave_n, octave_scale, "final_" + filename, model)
