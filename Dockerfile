@@ -114,5 +114,5 @@ RUN /opt/caffe/scripts/download_model_binary.py /opt/caffe/models/bvlc_googlenet
 RUN /opt/caffe/scripts/download_model_binary.py /opt/caffe/models/bvlc_alexnet
 RUN /opt/caffe/scripts/download_model_binary.py /opt/caffe/models/bvlc_reference_rcnn_ilsvrc13
 RUN /opt/caffe/scripts/download_model_binary.py /opt/caffe/models/bvlc_reference_caffenet
+RUN /opt/caffe/scripts/download_model_binary.py /opt/caffe/models/finetune_flickr_style
 #RUN /opt/caffe/scripts/download_model_binary.py /opt/caffe/models/bvlc_reference_islvrc13
-#RUN /opt/caffe/scripts/download_model_binary.py /opt/caffe/models/finetune_flicker_style
