@@ -83,19 +83,24 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
 
 
 def process2(net, frame, filename, model):
+    #googlenet best
     # layers = [
     #         "inception_3b/5x5_reduce",
     #         ]
-    layers = ['conv3', 'conv4', 'conv5', 'pool5', 'conv1', 'norm1', 'pool1', 'conv2', 'norm2', 'pool2']
-    # layers = net.blobs.keys()
-    # print layers
+
+    #alexnet
+    # layers = ['conv3', 'conv4', 'conv5', 'pool5', 'conv1', 'norm1', 'pool1', 'conv2', 'norm2', 'pool2']
+
+    layers = net.blobs.keys()
+    print layers
 
     for octave_n in [2]:
         for octave_scale in [2.5]:
             for iterations in [30]:
                 for layer in layers:
-                    output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model)
-                    save_file(output, layer, iterations, octave_n, octave_scale, "final_" + filename, model)
+                    if layer != "data":
+                        output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model)
+                        save_file(output, layer, iterations, octave_n, octave_scale, "final_" + filename, model)
 
 def save_file(output, layer, iterations, octave_n, octave_scale, filename, model):
     name = model + "_" + layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
@@ -114,10 +119,17 @@ def start(filename):
 
     model_name = "alexnet"
     model_path = '../caffe/models/bvlc_alexnet/'
-    #model_path = '../caffe/models/bvlc_googlenet/'
-    net_fn   = model_path + 'deploy.prototxt'
-    # param_fn = model_path + 'bvlc_googlenet.caffemodel'
     param_fn = model_path + 'bvlc_alexnet.caffemodel'
+
+    model_name = "rcnn"
+    model_path = '../caffe/models/bvlc_reference_rcnn_ilsvrc13/'
+    param_fn = model_path + 'bvlc_reference_rcnn_ilsvrc13.caffemodel'
+
+    #model_name = "googlenet"
+    #model_path = '../caffe/models/bvlc_googlenet/'
+    # param_fn = model_path + 'bvlc_googlenet.caffemodel'
+
+    net_fn   = model_path + 'deploy.prototxt'
 
     model = caffe.io.caffe_pb2.NetParameter()
     text_format.Merge(open(net_fn).read(), model)
