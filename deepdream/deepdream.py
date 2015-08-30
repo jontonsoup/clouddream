@@ -8,8 +8,8 @@ from IPython.display import clear_output, Image, display
 from google.protobuf import text_format
 import shutil
 import caffe
-import os
 from multiprocessing import Process
+import os
 
 def showarray(a, fmt='jpeg'):
     a = np.uint8(np.clip(a, 0, 255))
@@ -24,7 +24,7 @@ def preprocess(net, img):
 def deprocess(net, img):
     return np.dstack((img + net.transformer.mean['data'])[::-1])
 
-def make_step(net, step_size=1.5, end='inception_4c/output', jitter=32, clip=True):
+def make_step_normalized(net, step_size=1.5, end='inception_4c/output', jitter=32, clip=True):
     '''Basic gradient ascent step.'''
 
     src = net.blobs['data'] # input image is storred in Net's 'data' blob
@@ -46,7 +46,33 @@ def make_step(net, step_size=1.5, end='inception_4c/output', jitter=32, clip=Tru
         bias = net.transformer.mean['data']
         src.data[:] = np.clip(src.data, -bias, 255-bias)
 
-def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, model="", jitter=32, **step_params):
+def objective_L2(dst, guide_features):
+    dst.diff[:] = dst.data
+
+def make_step(net, step_size=1.5, end='inception_4c/output',
+              jitter=32, clip=True, guide_features=None, objective=objective_L2):
+    '''Basic gradient ascent step.'''
+
+    src = net.blobs['data'] # input image is stored in Net's 'data' blob
+    dst = net.blobs[end]
+
+    ox, oy = np.random.randint(-jitter, jitter+1, 2)
+    src.data[0] = np.roll(np.roll(src.data[0], ox, -1), oy, -2) # apply jitter shift
+
+    net.forward(end=end)
+    objective(dst, guide_features)  # specify the optimization objective
+    net.backward(start=end)
+    g = src.diff[0]
+    # apply normalized ascent step to the input image
+    src.data[:] += step_size/np.abs(g).mean() * g
+
+    src.data[0] = np.roll(np.roll(src.data[0], -ox, -1), -oy, -2) # unshift image
+
+    if clip:
+        bias = net.transformer.mean['data']
+        src.data[:] = np.clip(src.data, -bias, 255-bias)
+
+def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, model="", jitter=32, guide_features=None,guide=False,**step_params):
     # prepare base images for all octaves
     octaves = [preprocess(net, base_img)]
     for i in xrange(octave_n-1):
@@ -64,7 +90,7 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
         src.reshape(1,3,h,w) # resize the network's input image size
         src.data[0] = octave_base+detail
         for i in xrange(iter_n):
-            make_step(net, end=end, jitter=jitter, clip=clip, **step_params)
+            make_step(net, end=end, jitter=jitter, clip=clip, guide_features=guide_features, **step_params)
 
             # visualization
             vis = deprocess(net, src.data[0])
@@ -72,7 +98,7 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
                 vis = vis*(255.0/np.percentile(vis, 99.98))
             #showarray(vis)
             if ((i > 10) and (i % 10 == 0)):
-                save_file(vis, end, i, octave, octave_scale, filename, model)
+                save_file(vis, end, i, octave, octave_scale, filename, model,guide)
             print filename, octave, i, end, vis.shape
             clear_output(wait=True)
 
@@ -81,8 +107,17 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
     # returning the resulting image
     return deprocess(net, src.data[0])
 
+def objective_guide(dst, guide_features):
+    x = dst.data[0].copy()
+    y = guide_features
+    ch = x.shape[0]
+    x = x.reshape(ch,-1)
+    y = y.reshape(ch,-1)
+    A = x.T.dot(y) # compute the matrix of dot-products with guide features
+    dst.diff[0].reshape(ch,-1)[:] = y[:,A.argmax(1)] # select ones that match best
 
-def process2(net, frame, filename, model):
+
+def process2(net, frame, filename, model, guide):
     #googlenet best
     # layers = [
     #         "inception_3b/5x5_reduce",
@@ -99,11 +134,25 @@ def process2(net, frame, filename, model):
             for iterations in [100]:
                 for layer in layers:
                     if layer != "data":
-                        output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model)
-                        save_file(output, layer, iterations, octave_n, octave_scale, "_____final_____" + filename, model)
+                        if guide != None:
+                            print("================USING GUIDE=========================")
+                            h, w = guide.shape[:2]
+                            src, dst = net.blobs['data'], net.blobs[layer]
+                            src.reshape(1,3,h,w)
+                            src.data[0] = preprocess(net, guide)
+                            net.forward(end=layer)
+                            guide_features = dst.data[0].copy()
+                            output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model,objective=objective_guide,guide_features=guide_features,guide=True)
+                            save_file(output, layer, iterations, octave_n, octave_scale, "_____final_____" + filename, model, true)
+                        else:
+                            output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model)
+                            save_file(output, layer, iterations, octave_n, octave_scale, "_____final_____" + filename, model)
 
-def save_file(output, layer, iterations, octave_n, octave_scale, filename, model):
-    name = model + "_" + layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
+def save_file(output, layer, iterations, octave_n, octave_scale, filename, model,guide=False):
+    name = ""
+    if guide == True:
+       name = "guided__"
+    name = name + model + "_" + layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
     name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
     name3 = name2 + "32__nonlin" + filename
     PIL.Image.fromarray(np.uint8(output)).save("outputs/" + name3, dpi=(600,600))
@@ -113,21 +162,35 @@ def start(filename):
     with open("settings.json") as json_file:
         json_data = json.load(json_file)
 
+    try:
+        guide = np.float32(PIL.Image.open(os.getcwd() + "/guide.jpg"))
+    except:
+        guide = None
+
     img = PIL.Image.open(os.getcwd() + "/inputs/" + filename)
     if (img == None):
         quit()
 
-    model_name = "alexnet"
-    model_path = '../caffe/models/bvlc_alexnet/'
-    param_fn = model_path + 'bvlc_alexnet.caffemodel'
+    model_name = "googlenet"
+    model_path = '../caffe/models/bvlc_googlenet/'
+    param_fn = model_path + 'bvlc_googlenet.caffemodel'
 
-    model_name = "rcnn"
-    model_path = '../caffe/models/bvlc_reference_rcnn_ilsvrc13/'
-    param_fn = model_path + 'bvlc_reference_rcnn_ilsvrc13.caffemodel'
+    # model_name = "alexnet"
+    # model_path = '../caffe/models/bvlc_alexnet/'
+    # param_fn = model_path + 'bvlc_alexnet.caffemodel'
 
-    #model_name = "googlenet"
-    #model_path = '../caffe/models/bvlc_googlenet/'
-    # param_fn = model_path + 'bvlc_googlenet.caffemodel'
+    # model_name = "rcnn"
+    # model_path = '../caffe/models/bvlc_reference_rcnn_ilsvrc13/'
+    # param_fn = model_path + 'bvlc_reference_rcnn_ilsvrc13.caffemodel'
+
+    # model_name = "flickr"
+    # model_path = '../caffe/models/finetune_flickr_style/'
+    # param_fn = model_path + 'finetune_flickr_style.caffemodel'
+
+    # model_name = "bvlc_reference"
+    # model_path = '../caffe/models/bvlc_reference_caffenet/'
+    # param_fn = model_path + 'bvlc_reference_caffenet.caffemodel'
+
 
     net_fn   = model_path + 'deploy.prototxt'
 
@@ -152,7 +215,7 @@ def start(filename):
     img = np.float32(img)
 
     frame = img
-    process2(net, frame, filename, model_name)
+    process2(net, frame, filename, model_name,guide)
 
     shutil.move(os.getcwd() + "/inputs/" + filename, "done/")
 
