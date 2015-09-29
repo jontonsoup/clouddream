@@ -10,6 +10,7 @@ from google.protobuf import text_format
 import shutil
 import caffe
 from multiprocessing import Process
+import time
 
 def showarray(a, fmt='jpeg'):
     a = np.uint8(np.clip(a, 0, 255))
@@ -100,7 +101,7 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
             if not clip: # adjust image contrast if clipping is disabled
                 vis = vis*(255.0/np.percentile(vis, 99.98))
             #showarray(vis)
-            if ((i > 10) and (i % 10 == 0)):
+            if ((i > 30) and (i % 10 == 0) and octave > 0):
                 save_file(vis, end, i, octave, octave_scale, filename, model,guide_file)
             print filename, octave, i, end, vis.shape, guide_file
             clear_output(wait=True)
@@ -120,24 +121,16 @@ def objective_guide(dst, guide_features):
     dst.diff[0].reshape(ch,-1)[:] = y[:,A.argmax(1)] # select ones that match best
 
 
-def process2(net, frame, filename, model, guide, guide_file):
-    layers = net.blobs.keys()
-    #print layers
+def process(net, frame, filename, model, guide, guide_file, layers, octave, scale_n, iteration_n):
+    # layers = net.blobs.keys()
+    # print layers
 
-    #googlenet best
-    layers = [
-            "inception_3b/5x5_reduce",
-            "inception_3b/5x5",
-            ]
-
-
-    for octave_n in [4]:
-        for octave_scale in [2.5]:
-            for iterations in [50]:
+    for octave_n in [octave]:
+        for octave_scale in [scale_n]:
+            for iterations in [iteration_n]:
                 for layer in layers:
                     if layer != "data":
                         if guide != None:
-                            print("================USING GUIDE=========================")
                             h, w = guide.shape[:2]
                             src, dst = net.blobs['data'], net.blobs[layer]
                             src.reshape(1,3,h,w)
@@ -145,14 +138,14 @@ def process2(net, frame, filename, model, guide, guide_file):
                             net.forward(end=layer)
                             guide_features = dst.data[0].copy()
                             output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model,objective=objective_guide,guide_features=guide_features,guide=guide, guide_file=guide_file)
-                            print("####################DONE GUIDE#############################")
                             save_file(output, layer, iterations, octave_n, octave_scale, "_____final_____" + filename, model, guide_file)
                         else:
                             output = deepdream(filename, net, frame, iter_n=iterations, octave_n=octave_n, octave_scale=octave_scale, end=layer, model=model)
                             save_file(output, layer, iterations, octave_n, octave_scale, "_____final_____" + filename, model)
+    return output
 
 def save_file(output, layer, iterations, octave_n, octave_scale, filename, model,guide=""):
-    name = guide + "____" + model + "_" + layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
+    name = guide + "_" + time.strftime("%H:%M:%S") + "__" + model + "_" + layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
     name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
     name3 = name2 + "32__nonlin" + filename
     PIL.Image.fromarray(np.uint8(output)).save("outputs/" + name3, dpi=(600,600))
@@ -172,59 +165,72 @@ def start(filename, guide_file):
     if (img == None):
         quit()
 
-    model_name = "googlenet"
-    model_path = '../caffe/models/bvlc_googlenet/'
-    param_fn = model_path + 'bvlc_googlenet.caffemodel'
+    output = chose_and_run_model(filename, guide, guide_file, img, json_data, "bvlc_reference")
+    chose_and_run_model("second__" + filename, guide, guide_file, output, json_data, "googlenet")
 
-    # model_name = "alexnet"
-    # model_path = '../caffe/models/bvlc_alexnet/'
-    # param_fn = model_path + 'bvlc_alexnet.caffemodel'
-
-    # model_name = "rcnn"
-    # model_path = '../caffe/models/bvlc_reference_rcnn_ilsvrc13/'
-    # param_fn = model_path + 'bvlc_reference_rcnn_ilsvrc13.caffemodel'
-
-    # model_name = "flickr"
-    # model_path = '../caffe/models/finetune_flickr_style/'
-    # param_fn = model_path + 'finetune_flickr_style.caffemodel'
-
-    # model_name = "bvlc_reference"
-    # model_path = '../caffe/models/bvlc_reference_caffenet/'
-    # param_fn = model_path + 'bvlc_reference_caffenet.caffemodel'
+def chose_and_run_model(filename, guide, guide_file, img, json_data, model_name):
+    model_path, param_fn, layers, octave, scale_n, iteration_n = choose_model(model_name)
+    return run_model(filename, guide, guide_file, img, json_data, model_name, model_path, param_fn, layers, octave, scale_n, iteration_n)
 
 
-    net_fn   = model_path + 'deploy.prototxt'
+def choose_model(model_name):
+    if model_name == "googlenet":
+        model_path = '../caffe/models/bvlc_googlenet/'
+        param_fn = model_path + 'bvlc_googlenet.caffemodel'
+        layers = [
+            "inception_3b/5x5_reduce",
+            "conv2/3x3_reduce"
+            ]
+        octave, scale_n, iteration_n = 2, 2, 80
 
+    elif model_name == "alexnet":
+        model_path = '../caffe/models/bvlc_alexnet/'
+        param_fn = model_path + 'bvlc_alexnet.caffemodel'
+        octave, scale_n, iteration_n = 2, 2, 80
+
+    elif model_name == "rcnn":
+        model_path = '../caffe/models/bvlc_reference_rcnn_ilsvrc13/'
+        param_fn = model_path + 'bvlc_reference_rcnn_ilsvrc13.caffemodel'
+        octave, scale_n, iteration_n = 2, 2, 80
+
+    elif model_name == "flickr":
+        model_path = '../caffe/models/finetune_flickr_style/'
+        param_fn = model_path + 'finetune_flickr_style.caffemodel'
+        octave, scale_n, iteration_n = 2, 2, 80
+
+    elif model_name == "bvlc_reference":
+        model_path = '../caffe/models/bvlc_reference_caffenet/'
+        param_fn = model_path + 'bvlc_reference_caffenet.caffemodel'
+        layers = [ "conv1" ]
+        octave, scale_n, iteration_n = 2, 4, 25
+
+    return model_path, param_fn, layers, octave, scale_n, iteration_n
+
+def run_model(filename, guide, guide_file, img, json_data, model_name, model_path, param_fn, layers, octave, scale_n, iteration_n):
+    net_fn = model_path + 'deploy.prototxt'
     model = caffe.io.caffe_pb2.NetParameter()
     text_format.Merge(open(net_fn).read(), model)
     model.force_backward = True
     open('tmp.prototxt', 'w').write(str(model))
-
     net = caffe.Classifier('tmp.prototxt', param_fn,
-                           mean = np.float32([104.0, 116.0, 122.0]), # ImageNet mean, training set dependent
-                           channel_swap = (2,1,0)) # the reference model has channels in BGR order instead of RGB
-
+                           mean=np.float32([104.0, 116.0, 122.0]),  # ImageNet mean, training set dependent
+                           channel_swap=(2, 1, 0))  # the reference model has channels in BGR order instead of RGB
     maxwidth = json_data['maxwidth']
-
-    width = img.size[0]
-
-    if width > maxwidth:
-        wpercent = (maxwidth/float(img.size[0]))
-        hsize = int((float(img.size[1])*float(wpercent)))
-        img = img.resize((maxwidth,hsize), PIL.Image.ANTIALIAS)
-
+    if len(img.size) > 0:
+        width = img.size[0]
+        if width > maxwidth:
+            wpercent = (maxwidth / float(img.size[0]))
+            hsize = int((float(img.size[1]) * float(wpercent)))
+            img = img.resize((maxwidth, hsize), PIL.Image.ANTIALIAS)
     img = np.float32(img)
-
     frame = img
     print("++++++++++++++++++++++++++Processing File++++++++++++++++++++++++++")
-    process2(net, frame, filename, model_name,guide, guide_file)
-    shutil.move(os.getcwd() + "/inputs/" + guide_file, "guide_done/")
-
+    return process(net, frame, filename, model_name, guide, guide_file, layers, octave, scale_n, iteration_n)
 
 ###############################################################################
 count = 1
 for filename in os.listdir(os.getcwd() + "/inputs/"):
-    for guide in os.listdir(os.getcwd() + "/guides/"):
+    for guide in os.listdir(os.getcwd() + "/guides/") + [None]:
         if filename == ".DS_Store" or filename == ".gitkeep":
             continue
         if guide == ".DS_Store" or filename == ".gitkeep":
@@ -240,5 +246,3 @@ for filename in os.listdir(os.getcwd() + "/inputs/"):
             count = count + 1
     if filename != ".DS_Store" and filename != ".gitkeep":
         shutil.move(os.getcwd() + "/inputs/" + filename, "done/")
-
-
