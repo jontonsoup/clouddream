@@ -9,3 +9,5 @@ output.jpg
 images.json
 *.mp4
 .file
+*.jpg
+*.JPG

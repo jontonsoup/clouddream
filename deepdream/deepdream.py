@@ -101,8 +101,9 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
             if not clip: # adjust image contrast if clipping is disabled
                 vis = vis*(255.0/np.percentile(vis, 99.98))
             #showarray(vis)
-            if ((i > 30) and (i % 10 == 0) and octave > 0):
-                save_file(vis, end, i, octave, octave_scale, filename, model,guide_file)
+            if ((i > 9) and (i % 10 == 0) and octave > 0):
+                save_file(vis, end, i, octave, octave_scale, filename, model, guide_file)
+
             print filename, octave, i, end, vis.shape, guide_file
             clear_output(wait=True)
 
@@ -148,6 +149,7 @@ def save_file(output, layer, iterations, octave_n, octave_scale, filename, model
     name = guide + "_" + time.strftime("%H:%M:%S") + "__" + model + "_" + layer.replace("/", "") + "_itr_" + str(iterations) + "_octs_"
     name2 = name + str(octave_n) + "_scl_" + str(octave_scale) + "_jt_"
     name3 = name2 + "32__nonlin" + filename
+    print("Saving File: " + name3)
     PIL.Image.fromarray(np.uint8(output)).save("outputs/" + name3, dpi=(600,600))
 
 
@@ -166,10 +168,16 @@ def start(filename, guide_file):
         quit()
 
     output = chose_and_run_model(filename, guide, guide_file, img, json_data, "bvlc_reference")
-    chose_and_run_model("second__" + filename, guide, guide_file, output, json_data, "googlenet")
+    chose_and_run_model("second__" + filename, guide, guide_file, output, json_data, "googlenet", "bvlc_reference")
 
-def chose_and_run_model(filename, guide, guide_file, img, json_data, model_name):
+def chose_and_run_model(filename, guide, guide_file, img, json_data, model_name, previous=None):
     model_path, param_fn, layers, octave, scale_n, iteration_n = choose_model(model_name)
+
+    if previous != None:
+        _, p_param_fn, p_layers, p_octave, p_scale_n, p_iteration_n = choose_model(previous)
+        filename = filename + "_" + "_" + previous + str(p_octave) + "_" + str(p_scale_n) + "_" + str(p_iteration_n)
+        print filename
+
     return run_model(filename, guide, guide_file, img, json_data, model_name, model_path, param_fn, layers, octave, scale_n, iteration_n)
 
 
@@ -178,8 +186,8 @@ def choose_model(model_name):
         model_path = '../caffe/models/bvlc_googlenet/'
         param_fn = model_path + 'bvlc_googlenet.caffemodel'
         layers = [
-            "inception_3b/5x5_reduce",
-            "conv2/3x3_reduce"
+            "inception_3b/5x5_reduce"
+            # "conv2/3x3_reduce"
             ]
         octave, scale_n, iteration_n = 2, 2, 80
 
@@ -196,13 +204,13 @@ def choose_model(model_name):
     elif model_name == "flickr":
         model_path = '../caffe/models/finetune_flickr_style/'
         param_fn = model_path + 'finetune_flickr_style.caffemodel'
-        octave, scale_n, iteration_n = 2, 2, 80
+        octave, scale_n, iteration_n = 2, 1.2, 80
 
     elif model_name == "bvlc_reference":
         model_path = '../caffe/models/bvlc_reference_caffenet/'
         param_fn = model_path + 'bvlc_reference_caffenet.caffemodel'
         layers = [ "conv1" ]
-        octave, scale_n, iteration_n = 2, 4, 25
+        octave, scale_n, iteration_n = 4, 1.5, 30
 
     return model_path, param_fn, layers, octave, scale_n, iteration_n
 
@@ -216,12 +224,16 @@ def run_model(filename, guide, guide_file, img, json_data, model_name, model_pat
                            mean=np.float32([104.0, 116.0, 122.0]),  # ImageNet mean, training set dependent
                            channel_swap=(2, 1, 0))  # the reference model has channels in BGR order instead of RGB
     maxwidth = json_data['maxwidth']
-    if len(img.size) > 0:
+    try:
         width = img.size[0]
         if width > maxwidth:
             wpercent = (maxwidth / float(img.size[0]))
             hsize = int((float(img.size[1]) * float(wpercent)))
             img = img.resize((maxwidth, hsize), PIL.Image.ANTIALIAS)
+    except Exception, e:
+        print "====ERROR==="
+        print e
+    print "Running image"
     img = np.float32(img)
     frame = img
     print("++++++++++++++++++++++++++Processing File++++++++++++++++++++++++++")
