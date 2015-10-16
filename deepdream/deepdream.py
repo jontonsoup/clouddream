@@ -101,7 +101,7 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
             if not clip: # adjust image contrast if clipping is disabled
                 vis = vis*(255.0/np.percentile(vis, 99.98))
             #showarray(vis)
-            if ((i > 9) and (i % 10 == 0) and octave > 0):
+            if (i > 9) and (i % 10 == 0):
                 save_file(vis, end, i, octave, octave_scale, filename, model, guide_file)
 
             print filename, octave, i, end, vis.shape, guide_file
@@ -167,29 +167,37 @@ def start(filename, guide_file):
     if (img == None):
         quit()
 
-    output = chose_and_run_model(filename, guide, guide_file, img, json_data, "bvlc_reference")
-    chose_and_run_model("second__" + filename, guide, guide_file, output, json_data, "googlenet", "bvlc_reference")
+    #output = chose_and_run_model(filename, guide, guide_file, img, json_data, "bvlc_reference")
+    output = chose_and_run_model(filename, guide, guide_file, img, json_data, "googlenet_3x")
+    chose_and_run_model("second__" + filename, guide, guide_file, output, json_data, "googlenet_5x", "googlenet_3x")
 
 def chose_and_run_model(filename, guide, guide_file, img, json_data, model_name, previous=None):
     model_path, param_fn, layers, octave, scale_n, iteration_n = choose_model(model_name)
 
     if previous != None:
         _, p_param_fn, p_layers, p_octave, p_scale_n, p_iteration_n = choose_model(previous)
-        filename = filename + "_" + "_" + previous + str(p_octave) + "_" + str(p_scale_n) + "_" + str(p_iteration_n)
+        filename =  previous + str(p_octave) + "_" + str(p_scale_n) + "_" + str(p_iteration_n) + filename
         print filename
 
     return run_model(filename, guide, guide_file, img, json_data, model_name, model_path, param_fn, layers, octave, scale_n, iteration_n)
 
 
 def choose_model(model_name):
-    if model_name == "googlenet":
+    if model_name == "googlenet_3x":
+        model_path = '../caffe/models/bvlc_googlenet/'
+        param_fn = model_path + 'bvlc_googlenet.caffemodel'
+        layers = [
+             "conv2/3x3_reduce"
+            ]
+        octave, scale_n, iteration_n = 2, 3, 51
+
+    if model_name == "googlenet_5x":
         model_path = '../caffe/models/bvlc_googlenet/'
         param_fn = model_path + 'bvlc_googlenet.caffemodel'
         layers = [
             "inception_3b/5x5_reduce"
-            # "conv2/3x3_reduce"
             ]
-        octave, scale_n, iteration_n = 2, 2, 80
+        octave, scale_n, iteration_n = 2, 1.2, 51
 
     elif model_name == "alexnet":
         model_path = '../caffe/models/bvlc_alexnet/'
@@ -210,7 +218,7 @@ def choose_model(model_name):
         model_path = '../caffe/models/bvlc_reference_caffenet/'
         param_fn = model_path + 'bvlc_reference_caffenet.caffemodel'
         layers = [ "conv1" ]
-        octave, scale_n, iteration_n = 4, 1.5, 30
+        octave, scale_n, iteration_n = 4, 4, 20
 
     return model_path, param_fn, layers, octave, scale_n, iteration_n
 
@@ -242,7 +250,7 @@ def run_model(filename, guide, guide_file, img, json_data, model_name, model_pat
 ###############################################################################
 count = 1
 for filename in os.listdir(os.getcwd() + "/inputs/"):
-    for guide in os.listdir(os.getcwd() + "/guides/") + [None]:
+    for guide in [None] + os.listdir(os.getcwd() + "/guides/"):
         if filename == ".DS_Store" or filename == ".gitkeep":
             continue
         if guide == ".DS_Store" or filename == ".gitkeep":
