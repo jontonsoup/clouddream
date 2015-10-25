@@ -79,6 +79,8 @@ def deepdream(filename, net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
     for i in xrange(octave_n-1):
         octaves.append(nd.zoom(octaves[-1], (1, 1.0/octave_scale,1.0/octave_scale), order=1))
 
+    octaves.append(nd.zoom(octaves[-1], (1, 1, 1), order=1))
+
     src = net.blobs['data']
     detail = np.zeros_like(octaves[-1]) # allocate image for network-produced details
     print("OCTS:" + str(octave_n))
@@ -167,7 +169,8 @@ def start(filename, guide_file):
     if (img == None):
         quit()
 
-    #output = chose_and_run_model(filename, guide, guide_file, img, json_data, "bvlc_reference")
+    chose_and_run_model(filename, guide, guide_file, img, json_data, "googlenet_5x")
+
     output = chose_and_run_model(filename, guide, guide_file, img, json_data, "googlenet_3x")
     chose_and_run_model("second__" + filename, guide, guide_file, output, json_data, "googlenet_5x", "googlenet_3x")
 
@@ -189,7 +192,7 @@ def choose_model(model_name):
         layers = [
              "conv2/3x3_reduce"
             ]
-        octave, scale_n, iteration_n = 2, 3, 51
+        octave, scale_n, iteration_n = 2, 2, 51
 
     if model_name == "googlenet_5x":
         model_path = '../caffe/models/bvlc_googlenet/'
@@ -197,7 +200,7 @@ def choose_model(model_name):
         layers = [
             "inception_3b/5x5_reduce"
             ]
-        octave, scale_n, iteration_n = 2, 1.2, 51
+        octave, scale_n, iteration_n = 3, 2, 81
 
     elif model_name == "alexnet":
         model_path = '../caffe/models/bvlc_alexnet/'
@@ -218,7 +221,7 @@ def choose_model(model_name):
         model_path = '../caffe/models/bvlc_reference_caffenet/'
         param_fn = model_path + 'bvlc_reference_caffenet.caffemodel'
         layers = [ "conv1" ]
-        octave, scale_n, iteration_n = 4, 4, 20
+        octave, scale_n, iteration_n = 3, 2, 25
 
     return model_path, param_fn, layers, octave, scale_n, iteration_n
 
